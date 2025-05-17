@@ -1,0 +1,334 @@
+{% extends 'base.html' %}
+
+{% block title %}Recipe Lookup{% endblock %}
+
+{% block content %}
+    <h2>Recipe Lookup</h2>
+    
+    <!-- Chatbot Button -->
+    <button class="btn btn-info position-fixed" style="bottom: 20px; right: 20px; z-index: 1000;" data-bs-toggle="modal" data-bs-target="#chatbotModal">
+        Ask for Meal Suggestions
+    </button>
+
+    <!-- Chatbot Modal -->
+    <div class="modal fade" id="chatbotModal" tabindex="-1" aria-labelledby="chatbotModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Recipe Chatbot</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="chatbotPrompt" class="form-control mb-3" placeholder="What do you feel like eating? e.g. spicy chicken, healthy vegetarian...">
+                <button id="chatbotSubmit" class="btn btn-primary mb-3">Get Recipes</button>
+                <div id="chatbotResults" class="row"></div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("chatbotSubmit").addEventListener("click", function () {
+            const prompt = document.getElementById("chatbotPrompt").value;
+            const resultsDiv = document.getElementById("chatbotResults");
+
+            // Clear previous results and show loading animation
+            resultsDiv.innerHTML = '<p id="loadingText">Loading.</p>';
+
+            // Animate the loading text: "Loading." → "Loading.." → "Loading..."
+            let dots = 1;
+            const loadingText = document.getElementById("loadingText");
+            const loadingInterval = setInterval(() => {
+                dots = (dots % 3) + 1;
+                loadingText.textContent = "Loading" + ".".repeat(dots);
+            }, 500);
+
+            fetch("/chatbot-recommend", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt })
+            })
+            .then(res => res.json())
+            // .then(data => {
+            //     clearInterval(loadingInterval); // Stop loading animation
+            //     resultsDiv.innerHTML = '';
+
+            //     if (data.recipes.length === 0) {
+            //         resultsDiv.innerHTML = '<p>No recipes found.</p>';
+            //         return;
+            //     }
+
+            //     data.recipes.forEach(recipe => {
+            //         const card = document.createElement("div");
+            //         card.className = "col-md-4";
+            //         card.innerHTML = `
+            //             <div class="card mb-3">
+            //                 <img src="/static/food_images/${recipe.image}" class="card-img-top" alt="${recipe.name}">
+            //                 <div class="card-body">
+            //                     <h5 class="card-title">
+            //                         <a href="/recipe_lookup/${encodeURIComponent(recipe.name)}?source=chatbot&prompt=${encodeURIComponent(prompt)}">
+            //                             ${recipe.name}
+            //                         </a>
+            //                     </h5>
+            //                     <p class="card-text">Calories: ${recipe.calories}</p>
+            //                 </div>
+            //             </div>
+            //         `;
+            //         resultsDiv.appendChild(card);
+            //     });
+            // })
+            .then(data => {
+                clearInterval(loadingInterval);
+                resultsDiv.innerHTML = '';
+
+                // 🔔 Play notification sound
+                const audio = document.getElementById("chatbotNotification");
+                if (audio) audio.play().catch(e => console.log("Autoplay prevented:", e));
+
+                if (data.recipes.length === 0) {
+                    resultsDiv.innerHTML = '<p>No recipes found.</p>';
+                    return;
+                }
+
+                data.recipes.forEach(recipe => {
+                    const card = document.createElement("div");
+                    card.className = "col-md-4";
+                    card.innerHTML = `
+                        <div class="card mb-3">
+                            <img src="/static/food_images/${recipe.image}" class="card-img-top" alt="${recipe.name}">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <a href="/recipe_lookup/${encodeURIComponent(recipe.name)}?source=chatbot&prompt=${encodeURIComponent(prompt)}" target="_blank">
+                                        ${recipe.name}
+                                    </a>
+                                </h5>
+                                <p class="card-text">Calories: ${recipe.calories}</p>
+                            </div>
+                        </div>
+                    `;
+                    resultsDiv.appendChild(card);
+                });
+            })
+
+            .catch(error => {
+                clearInterval(loadingInterval);
+                resultsDiv.innerHTML = '<p>Error fetching recipes. Please try again.</p>';
+                console.error('Error:', error);
+            });
+        });
+    </script>
+
+
+    <form method="POST">
+        <div class="form-group">
+            <label for="recipe_name">Enter Recipe Name:</label>
+            <input type="text" id="recipe_name" name="recipe_name" class="form-control" placeholder="e.g., crispy potatoes" value="{{ request.form['recipe_name'] }}">
+        </div>
+        <div class="form-group">
+            <label for="ingredients">Enter Ingredients:</label>
+            <input type="text" id="ingredients" name="ingredients" class="form-control" placeholder="e.g., chicken, tomato" value="{{ request.form['ingredients'] }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    {% if search_results %}
+        <h3>Search Results</h3>
+        <div class="row">
+            {% for recipe in search_results %}
+            <div class="col-md-4">
+                <div class="card">
+                    <!-- Image Tag -->
+                    <img src="{{ url_for('static', filename='food_images/' ~ recipe.image) }}" class="card-img-top" alt="{{ recipe.name }}">
+                    <div class="card-body">
+                        <h4 class="card-title">
+                            <a href="{{ url_for('recipe_detail', recipe_name=recipe.name|urlencode) }}" target="_blank">
+                                {{ recipe.name }}
+                            </a>
+                        </h4>
+
+                        <h5 class="card-text">Calories: <strong>{{ recipe.calories }}</strong>kcal</h5>
+
+                        <!-- Nutrient Toggle Button -->
+                        <button class="btn btn-outline-warning mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#nutrients{{ loop.index }}" aria-expanded="false" aria-controls="nutrients{{ loop.index }}">
+                            Show Nutrients
+                        </button>
+
+                        <!-- Top-level Nutrients Collapse -->
+                        <div class="collapse" id="nutrients{{ loop.index }}">
+                            <div class="card card-body">
+                                
+                                <!-- Wrap buttons in a flex container -->
+                                <div class="d-flex justify-content-center gap-2 mb-2">
+                                    <!-- Macro Nutrients Button -->
+                                    <button class="btn btn-outline-warning" type="button" data-bs-toggle="collapse" data-bs-target="#macro{{ loop.index }}" aria-expanded="false" aria-controls="macro{{ loop.index }}">
+                                        Macro Nutrients
+                                    </button>
+
+                                    <!-- Micro Nutrients Button -->
+                                    <button class="btn btn-outline-warning" type="button" data-bs-toggle="collapse" data-bs-target="#micro{{ loop.index }}" aria-expanded="false" aria-controls="micro{{ loop.index }}">
+                                        Micro Nutrients
+                                    </button>
+                                </div>
+
+                                <!-- Macro Nutrients Content -->
+                                <div class="collapse" id="macro{{ loop.index }}">
+                                    <div class="card card-body">
+                                        <ol style="text-align: left;">
+                                            {% for nutrient, value in recipe.macro %}
+                                                {% if value is not none %}
+                                                    <li><strong>{{ nutrient }}:</strong> {{ value }}</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </ol>
+                                    </div>
+                                </div>
+
+                                <!-- Micro Nutrients Content -->
+                                <div class="collapse" id="micro{{ loop.index }}">
+                                    <div class="card card-body">
+                                        <ol style="text-align: left;">
+                                            {% for nutrient, value in recipe.micro %}
+                                                {% if value is not none %}
+                                                    <li><strong>{{ nutrient }}:</strong> {{ value }}</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </ol>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+
+                        <!-- Ingredients Toggle Button -->
+                        <button class="btn btn-outline-primary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#ingredients{{ loop.index }}" aria-expanded="false" aria-controls="ingredients{{ loop.index }}">
+                            Show Ingredients
+                        </button>
+
+                        <!-- Collapsible Content -->
+                        <div class="collapse" id="ingredients{{ loop.index }}">
+                            <div class="card card-body">
+                                <ul style="text-align: left;">
+                                    {% for ingredient in recipe.ingredients %}
+                                        <li>{{ ingredient }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>    
+                        
+                        <!-- Instructions Toggle Button -->
+                        <button class="btn btn-outline-warning mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#instructions{{ loop.index }}" aria-expanded="false" aria-controls="instructions{{ loop.index }}">
+                            Show Instructions
+                        </button>
+
+                        <!-- Collapsible Instructions -->
+                        <div class="collapse" id="instructions{{ loop.index }}">
+                            <div class="card card-body">
+                                <ol style="text-align: left;">
+                                    {% for step in recipe.instructions %}
+                                        <li>{{ step }}</li>
+                                    {% endfor %}
+                                </ol>
+                            </div>
+                        </div>
+
+                        <!-- Save Dish Toggle Button -->
+                        <button class="btn btn-outline-success mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#save_dish{{ loop.index }}" aria-expanded="false" aria-controls="save_dish{{ loop.index }}">
+                            Save to Meal Planner
+                        </button>
+
+                        <!-- Save Dish Form -->
+                        <div class="collapse" id="save_dish{{ loop.index }}">
+                            <div class="card card-body">
+                                <form id="save_form_{{ loop.index }}" action="{{ url_for('save_to_meal_planner') }}" method="POST">
+                                    <input type="hidden" name="recipe_name" value="{{ recipe.name }}">
+                                    <input type="hidden" name="recipe_calories" value="{{ recipe.calories }}">
+                                    <input type="hidden" name="recipe_macro" value="{{ recipe.macro }}">
+                                    <input type="hidden" name="recipe_micro" value="{{ recipe.micro }}">
+                                
+                                    <div class="mb-2">
+                                        <label for="date">Date:</label>
+                                        <input type="date" id="date" name="date" required>
+                                    </div>
+                                
+                                    <div class="mb-3">
+                                        <label for="meal{{ loop.index }}" class="form-label">Meal Type</label>
+                                        <select name="meal" id="meal{{ loop.index }}" class="form-select">
+                                            {% for meal in ['breakfast','lunch','dinner','snack','extra'] %}
+                                                <option value="{{ meal }}">{{ meal.capitalize() }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                
+                                    <button type="submit" class="btn btn-success w-100">Save</button>
+                                </form>                                                                
+                            </div>
+                        </div>                                
+                    </div>                    
+                </div>
+            </div>            
+            {% endfor %}
+        </div>
+
+        <!-- Centered Pagination Controls -->
+        <div class="d-flex justify-content-center mt-4">
+            <div class="pagination">
+                {% if page > 1 %}
+                    <a href="{{ url_for('recipe_lookup', page=page-1) }}" class="btn btn-secondary me-1">Previous</a>
+                {% endif %}
+
+                <!-- Page Numbers -->
+                {% for p in pagination %}
+                    {% if p == '...' %}
+                        <span class="btn btn-secondary me-1">...</span>
+                    {% else %}
+                        <a href="{{ url_for('recipe_lookup', page=p) }}" class="btn {% if p == page %}btn-primary{% else %}btn-secondary{% endif %} me-1">
+                            {{ p }}
+                        </a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page < total_pages %}
+                    <a href="{{ url_for('recipe_lookup', page=page+1) }}" class="btn btn-secondary">Next</a>
+                {% endif %}
+            </div>
+        </div>
+
+    {% else %}
+        <p>No recipes found for the entered ingredients or recipe name.</p>
+    {% endif %}
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const forms = document.querySelectorAll('form[id^="save_form_"]');
+            forms.forEach(function(form) {
+                form.addEventListener('submit', function(event) {
+                    event.preventDefault();  // Prevent default form submission
+                    
+                    const formData = new FormData(form);
+        
+                    fetch(form.action, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())  // Assuming the response is JSON
+                    .then(data => {
+                        if (data.success) {
+                            // Show success message or update UI without page reload
+                            alert(data.message);  // Example: Use flash messages
+                        } else {
+                            // Handle error
+                            alert('There was an error saving the recipe.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                });
+            });
+        });
+    </script>
+
+    <audio id="chatbotNotification" src="/static/sounds/notification.mp3" preload="auto"></audio>
+        
+{% endblock %}

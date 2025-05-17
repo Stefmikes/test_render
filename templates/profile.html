@@ -1,0 +1,264 @@
+
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+
+<div class="container mt-5">
+    <h2 class="text-center">User Profile</h2>
+
+    <div class="card mx-auto" style="max-width: 400px;">
+        <div class="card-body">
+            <h5 class="card-title text-center">{{ user.username }}</h5>
+
+            <!-- Profile Picture -->
+            <div class="text-center mb-3">
+                <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="Profile Picture" class="rounded-circle" width="100">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Username:</label>
+                <input type="text" name="username" class="form-control" value="{{ user.username }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email:</label>
+                <input type="email" name="email" class="form-control" value="{{ user.email }}">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Bio:</label>
+                <textarea name="bio" class="form-control">{{ user.bio }}</textarea>
+            </div>
+
+            <!-- Profile Form -->
+            <form method="POST" enctype="multipart/form-data">
+
+                <!-- Select or Add Member -->
+                <div class="dropdown mb-3">
+                    <label class="form-label">Member:</label>
+                    <button class="btn btn-success dropdown-toggle w-100" type="button" id="memberDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        Select Member
+                    </button>
+
+                    <ul class="dropdown-menu w-100" aria-labelledby="memberDropdown">
+                        {% for member in members %}
+                        <li>
+                            <a class="dropdown-item member-option" href="{{ url_for('profile', member_id=member.id) }}">{{ member.name }}</a>
+                        </li>
+                        {% endfor %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item text-success" type="button" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                                + Add Member
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                {% if selected_member %}
+                    <div id="memberInfoSection" class="mb-3">
+                        <h5 class="text-center">Member Info: {{ selected_member.name }}</h5>
+                        <p><strong>Calories:</strong> {{ selected_member.daily_calories or 'N/A' }}</p>
+                        <p><strong>Protein:</strong> {{ selected_member.protein_grams or 'N/A' }}g</p>
+                        <p><strong>Fat:</strong> {{ selected_member.fat_grams or 'N/A' }}g</p>
+                        <p><strong>Carbs:</strong> {{ selected_member.carbs_grams or 'N/A' }}g</p>
+                        <p><strong>Cuisines:</strong> {{ selected_member.cuisines | join(', ') }}</p>
+                        <p><strong>Allergies:</strong> {{ selected_member.allergies | join(', ') }}</p>
+                        <p><strong>Restrictions:</strong> {{ selected_member.dietary_restrictions | join(', ') }}</p>
+                    </div>
+                {% endif %}
+
+
+
+                <!-- Profile Picture Upload -->
+                <div class="mb-3">
+                    <label class="form-label">Profile Picture:</label>
+                    <input type="file" name="profile_pic" class="form-control">
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100">Save Profile Changes</button>
+            </form>   
+
+            <!-- Add Member Modal -->
+            <div class="modal fade" id="addMemberModal" tabindex="-1" aria-labelledby="addMemberModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <form method="POST" action="{{ url_for('add_member') }}">
+                            {{ form.hidden_tag() }}
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="addMemberModalLabel">Add New Member</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+
+                            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                                <div class="mb-3">
+                                    {{ form.name.label }} {{ form.name(class="form-control") }}
+                                </div>
+                                <!-- Collapsible Trigger -->
+                                <div class="mb-3">
+                                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#nutritionFields" aria-expanded="false" aria-controls="nutritionFields">
+                                        Show Daily Intake
+                                    </button>
+                                </div>
+
+                                <!-- Collapsible Nutrition Fields -->
+                                <div class="collapse" id="nutritionFields">
+                                    <div class="card card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Not sure what your daily intakes are?</label><br>
+                                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#dietCalculatorModal">
+                                                Open Diet Calculator
+                                            </button>
+                                        </div>
+                                        <div class="mb-3">
+                                            {{ form.daily_calories.label }} 
+                                            {{ form.daily_calories(class="form-control", id="dailyCalories") }}
+                                        </div>
+                                        <div class="mb-3">
+                                            {{ form.protein_grams.label }} 
+                                            {{ form.protein_grams(class="form-control", id="proteinGrams") }}
+                                        </div>
+                                        <div class="mb-3">
+                                            {{ form.fat_grams.label }} 
+                                            {{ form.fat_grams(class="form-control", id="fatGrams") }}
+                                        </div>
+                                        <div class="mb-3">
+                                            {{ form.carbs_grams.label }} 
+                                            {{ form.carbs_grams(class="form-control", id="carbsGrams") }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    {{ form.cuisines.label }}
+                                    {{ form.cuisines(class="form-control", multiple=True) }}
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.allergies.label }}
+                                    {{ form.allergies(class="form-control", multiple=True) }}
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.dietary_restrictions.label }}
+                                    {{ form.dietary_restrictions(class="form-control", multiple=True) }}
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="submit" class="btn btn-success">Add Member</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diet Calculator Modal -->
+            <div class="modal fade" id="dietCalculatorModal" tabindex="-1" aria-labelledby="dietCalculatorModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="dietCalculatorModalLabel">Diet Calculator</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Mock calculator fields -->
+                            <div class="mb-3">
+                                <label for="calcCalories" class="form-label">Calories</label>
+                                <input type="number" class="form-control" id="calcCalories">
+                            </div>
+                            <div class="mb-3">
+                                <label for="calcProtein" class="form-label">Protein (g)</label>
+                                <input type="number" class="form-control" id="calcProtein">
+                            </div>
+                            <div class="mb-3">
+                                <label for="calcFat" class="form-label">Fat (g)</label>
+                                <input type="number" class="form-control" id="calcFat">
+                            </div>
+                            <div class="mb-3">
+                                <label for="calcCarbs" class="form-label">Carbohydrates (g)</label>
+                                <input type="number" class="form-control" id="calcCarbs">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" onclick="applyDietValues()">Apply to Member Form</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Change Password Section -->
+            <div class="mt-4">
+                <button type="button" class="btn btn-warning w-100" data-bs-toggle="collapse" data-bs-target="#changePasswordForm">
+                    Change Password
+                </button>
+                <div id="changePasswordForm" class="collapse">
+                    <form action="{{ url_for('change_password') }}" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Current Password:</label>
+                            <input type="password" name="current_password" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">New Password:</label>
+                            <input type="password" name="new_password" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Confirm New Password:</label>
+                            <input type="password" name="confirm_new_password" class="form-control" required>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">Change Password</button>
+                    </form>
+                </div>
+            </div>
+
+            <a href="/" class="btn btn-secondary w-100 mt-2">Back to Home</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    function changeMember(select) {
+        const memberId = select.value;
+        window.location.href = `{{ url_for('profile') }}?member_id=${memberId}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const dropdownItems = document.querySelectorAll('.dropdown-menu .dropdown-item');
+        const dropdownButton = document.getElementById('memberDropdown');
+
+        dropdownItems.forEach(item => {
+        item.addEventListener('click', function (e) {
+            if (this.classList.contains('text-success')) {
+            dropdownButton.textContent = "Select Member";
+            }
+            else{
+            dropdownButton.textContent = this.textContent;
+            }
+        });
+        });
+    });
+
+    function applyDietValues() {
+        // Get values from calculator modal
+        const calories = document.getElementById('calcCalories').value;
+        const protein = document.getElementById('calcProtein').value;
+        const fat = document.getElementById('calcFat').value;
+        const carbs = document.getElementById('calcCarbs').value;
+
+        // Set values in addMemberModal form
+        document.getElementById('dailyCalories').value = calories;
+        document.getElementById('proteinGrams').value = protein;
+        document.getElementById('fatGrams').value = fat;
+        document.getElementById('carbsGrams').value = carbs;
+
+        // Close calculator modal
+        const dietModal = bootstrap.Modal.getInstance(document.getElementById('dietCalculatorModal'));
+        dietModal.hide();
+
+        // After slight delay, reopen Add Member modal
+        setTimeout(() => {
+            const addMemberModalEl = document.getElementById('addMemberModal');
+            const addMemberModal = new bootstrap.Modal(addMemberModalEl);
+            addMemberModal.show();
+        }, 300); // Delay ensures smooth transition
+    }
+</script>
+
+{% endblock %}

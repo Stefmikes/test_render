@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Home | Kitchen App{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-center mb-4">Weekly Meal Planner</h2>
+
+    <form method="POST" action="{{ url_for('save_to_meal_planner') }}">
+        {{ form.csrf_token() if form and form.csrf_token }}
+
+        <!-- View Toggle -->
+        <div class="d-flex justify-content-end mb-3">
+            <div class="btn-group" role="group" aria-label="View Toggle">
+                <button type="button" class="btn btn-outline-primary active" id="weekly-tab">Weekly</button>
+                <button type="button" class="btn btn-outline-primary" id="daily-tab">Daily</button>
+            </div>
+        </div>
+
+        <!-- Diet Info -->
+        <div class="row justify-content-center">
+            <h3 class="text-center mb-3">Diet Information</h3>
+            {% set diet_info = [
+                ('Daily Calories', current_user.daily_calories, ''),
+                ('Protein', current_user.protein_grams, 'g'),
+                ('Fats', current_user.fat_grams, 'g'),
+                ('Carbs', current_user.carbs_grams, 'g')
+            ] %}
+            {% for label, value, unit in diet_info %}
+            <div class="col-md-3 mb-3">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body">
+                        <h6 class="card-title"><strong>{{ label }}</strong></h6>
+                        <p class="card-text fs-5">{{ value or "—" }} {{ unit }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Weekly View -->
+        <div id="weekly-view">
+            {% set days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
+            {% set meals = ['breakfast', 'lunch', 'snack', 'dinner', 'extra'] %}
+
+            <!-- Week Selector -->
+            <div class="row mb-3">
+                <div class="col-md-4 mx-auto">
+                    <label for="selected_week" class="form-label"><h3>Select Week</h3></label>
+                    <input type="week" id="selected_week" class="form-select" value="{{ selected_week }}">
+                </div>
+            </div>
+
+            <div class="row g-4">
+                {% for day in days %}
+                {% if loop.index == 5 %}</div><div class="row g-4 mt-4">{% endif %}
+                <div class="col-md-3">
+                    <label class="form-label">
+                        <strong>
+                            {% set current_date = (start_of_week + timedelta(days=loop.index0)).isoformat() %}
+                            <a href="#" class="text-decoration-none day-link" data-day="{{ current_date }}">{{ day.capitalize() }}</a>
+                        </strong>
+                    </label>                    
+                    {% set daily_total = namespace(value=0) %}
+                    {% for meal in meals %}
+                    {% set meal_key = day ~ '_' ~ meal %}
+                    {% set meal_info = meal_data.get(meal_key, {}) %}
+                    <div class="row mb-2">
+                        <div class="col-7">
+                            <div class="form-control bg-light small-text">
+                                <strong>{{ meal.capitalize() }}:</strong><br>
+                                {{ meal_info.get('name', '—') }}
+                            </div>
+                        </div>
+                        <div class="col-5">
+                            <div class="form-control bg-light text-end small-text">
+                                <small><strong>Calories:</strong></small><br>
+                                {% set cal = meal_info.get('calories') %}
+                                {{ cal if cal else '—' }} kcal<br>
+                                {% if cal %}
+                                    {% set daily_total.value = daily_total.value + (cal | int) %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <div class="form-control text-center bg-warning-subtle mt-3">
+                        <strong>Total Calories:</strong> {{ daily_total.value }} kcal
+                    </div>
+                </div>
+                {% endfor %}
+                <!-- Weekly View Buttons -->
+                <div class="col-md-3 d-flex flex-column align-items-end gap-2">
+                    <br><br><br><br><br><br><br><br>
+                    <button type="button" class="btn btn-secondary">Edit</button>
+                    <button type="button" class="btn btn-info">Email</button>
+                    <button type="button" class="btn btn-dark" onclick="window.print()">Print</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily View -->
+        <div id="daily-view" style="display: none;">
+            <div class="text-center my-4">
+                <h3>Select a Date</h3>
+                <input type="date" id="date-picker" class="form-control w-auto mx-auto">
+            </div>
+
+            <div id="daily-content" class="mt-4">
+                <p class="text-center text-muted">Select a day to view meals</p>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- JS -->
+<script>
+    function formatDate(date) {
+        const options = { weekday: 'short', year: 'numeric', month: 'short', day: '2-digit' };
+        return date.toLocaleDateString('en-US', options);
+    }
+
+    function getThisWeekMonday(date) {
+        const day = date.getDay();
+        const diff = (day === 0 ? -6 : 1 - day);
+        const monday = new Date(date);
+        monday.setDate(date.getDate() + diff);
+        return monday;
+    }
+
+    function populateWeekOptions() {
+        const select = document.getElementById('selected_week');
+        const today = new Date();
+        let monday = getThisWeekMonday(today);
+
+        for (let i = 0; i < 8; i++) {
+            const startOfWeek = new Date(monday);
+            const endOfWeek = new Date(monday);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+            const option = document.createElement('option');
+            option.value = `${startOfWeek.toISOString().slice(0, 10)} to ${endOfWeek.toISOString().slice(0, 10)}`;
+            option.text = `${formatDate(startOfWeek)} - ${formatDate(endOfWeek)}`;
+            select.appendChild(option);
+
+            monday.setDate(monday.getDate() + 7);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        populateWeekOptions();
+
+        const weeklyBtn = document.getElementById('weekly-tab');
+        const dailyBtn = document.getElementById('daily-tab');
+        const weeklyView = document.getElementById('weekly-view');
+        const dailyView = document.getElementById('daily-view');
+        const mealData = {{ meal_data | tojson | safe }};
+
+        weeklyBtn.addEventListener('click', () => {
+            weeklyBtn.classList.add('active');
+            dailyBtn.classList.remove('active');
+            weeklyView.style.display = 'block';
+            dailyView.style.display = 'none';
+        });
+
+        dailyBtn.addEventListener('click', () => {
+            dailyBtn.classList.add('active');
+            weeklyBtn.classList.remove('active');
+            weeklyView.style.display = 'none';
+            dailyView.style.display = 'block';
+        });
+
+        const daySelect = document.getElementById('day-select');
+        const dailyContent = document.getElementById('daily-content');
+        const datePicker = document.getElementById('date-picker');
+
+        datePicker?.addEventListener('change', function () {
+            const selectedDate = this.value;  // Format: "YYYY-MM-DD"
+            const mealData = {{ meal_data | tojson | safe }};
+            const dateMeals = Object.entries(mealData)
+                .filter(([key, _]) => key.startsWith(selectedDate));
+
+            let total = 0;
+            let content = ``;
+
+            if (dateMeals.length === 0) {
+                content += `<p class="text-center text-muted">No meals found for this date.</p>`;
+            } else {
+                ['breakfast', 'lunch', 'snack', 'dinner', 'extra'].forEach(meal => {
+                    const key = `${selectedDate}_${meal}`;
+                    const entry = mealData[key] || {};
+                    const name = entry.name || '—';
+                    const calories = entry.calories || 0;
+                    const macro = entry.macro || '';
+                    const micro = entry.micro || '';
+                    total += parseInt(calories) || 0;
+
+                    content += `
+                        <div class="card my-3 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title">${meal.charAt(0).toUpperCase() + meal.slice(1)}</h5>
+                                <p class="card-text"><strong>${name}</strong></p>
+                                <p class="text-muted">Calories: ${calories} kcal</p>
+                                <p class="text-muted small">Macro: ${macro}</p>
+                                <p class="text-muted small">Micro: ${micro}</p>
+                            </div>
+                        </div>`;
+                });
+            }
+
+            content += `<div class="alert alert-info text-center"><strong>Total:</strong> ${total} kcal</div>`;
+            dailyContent.innerHTML = content;
+        });
+
+    });
+
+    document.querySelectorAll('.day-link').forEach(link => {
+        link.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            const selectedDate = this.getAttribute('data-day'); // e.g., '2025-05-05'
+
+            // Switch to daily view
+            document.getElementById('daily-tab').click();
+
+            // Set date picker value
+            setTimeout(() => {
+                const picker = document.getElementById('date-picker');
+                if (picker) {
+                    picker.value = selectedDate;
+                    picker.dispatchEvent(new Event('change'));
+                }
+            }, 100);
+        });
+    });
+
+    document.getElementById("selected_week").addEventListener("change", function () {
+        const week = this.value;
+        if (week) {
+            window.location.href = `/meal_planner?week=${week}`;
+        }
+    });
+
+</script>
+{% endblock %}
